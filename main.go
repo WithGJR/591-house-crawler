@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"io/ioutil"
@@ -13,13 +14,20 @@ const (
 	rootURL string = "https://store.591.com.tw/"
 )
 
-func getPageURL(pageNumber int) string {
-	//For Taichung
+var (
+	regionId int
+)
+
+func init() {
+	flag.IntVar(&regionId, "region", 8, "To see the region id, please visit https://store.591.com.tw/index.php")
+}
+
+func (c *Crawler) getPageURL(pageNumber int) string {
 	if pageNumber == 1 {
-		return rootURL + "house-rentSale.html?storeType=1&regionid=8&search=1"
+		return rootURL + "house-rentSale.html?storeType=1&regionid=" + strconv.Itoa(c.regionId) + "&search=1"
 	} else {
 		firstRow := 20 * (pageNumber - 1)
-		return rootURL + "index.php?firstRow=" + strconv.Itoa(firstRow) + "&storeType=1&regionid=8&search=1&module=house&action=rentSale"
+		return rootURL + "index.php?firstRow=" + strconv.Itoa(firstRow) + "&storeType=1&regionid=" + strconv.Itoa(c.regionId) + "&search=1&module=house&action=rentSale"
 	}
 }
 
@@ -28,7 +36,8 @@ type HouseInfo struct {
 }
 
 type Crawler struct {
-	infos map[int][]HouseInfo
+	regionId int
+	infos    map[int][]HouseInfo
 }
 
 type Task struct {
@@ -64,7 +73,7 @@ func (c *Crawler) Run() {
 
 	for {
 		pageNumber++
-		doc, err := goquery.NewDocument(getPageURL(pageNumber))
+		doc, err := goquery.NewDocument(c.getPageURL(pageNumber))
 
 		if err != nil {
 			log.Fatal(err)
@@ -85,6 +94,7 @@ func (c *Crawler) Run() {
 				PageNumber:             pageNumber,
 				URLsToDetailedInfoPage: urlsToDetailedInfoPage,
 			}
+			fmt.Printf("Start crawling page %d\n", pageNumber)
 			go c.handle(task, output)
 		}
 	}
@@ -107,8 +117,11 @@ func (c *Crawler) OutputJSONAsFile() {
 }
 
 func main() {
+	flag.Parse()
+
 	crawler := &Crawler{
-		infos: make(map[int][]HouseInfo),
+		regionId: regionId,
+		infos:    make(map[int][]HouseInfo),
 	}
 
 	crawler.Run()

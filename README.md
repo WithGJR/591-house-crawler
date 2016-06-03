@@ -1,3 +1,10 @@
-# 591 House Crawler
+# 591 House Crawler (591房屋交易網 店面出租 爬蟲)
 
 URL:  [https://store.591.com.tw/index.php](https://store.591.com.tw/index.php)
+
+## Usage
+
+1. `go build main.go`
+2. `./main -region [region-id]`
+
+請前往上述 URL 查看你要的地區的 id 為何。（使用瀏覽器的「檢查元素」功能）
