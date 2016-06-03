@@ -56,7 +56,7 @@ func (c *Crawler) handle(task Task, output chan Result) {
 	for i := 0; i < len(task.URLsToDetailedInfoPage); i++ {
 		doc, err := goquery.NewDocument(task.URLsToDetailedInfoPage[i])
 		if err != nil {
-			continue
+			log.Fatal(err)
 		}
 
 		doc.Find(".addr").Each(func(i int, s *goquery.Selection) {
