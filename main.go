@@ -37,7 +37,8 @@ type HouseInfo struct {
 
 type Crawler struct {
 	regionId int
-	infos    map[int][]HouseInfo
+	//key: pageNumber int
+	infos map[int][]HouseInfo
 }
 
 type Task struct {
@@ -61,15 +62,16 @@ type intermediateResult struct {
 }
 
 func (c *Crawler) handle(task Task, output chan Result) {
+	urlCount := len(task.URLsToDetailedInfoPage)
 	finalResult := Result{
 		PageNumber: task.PageNumber,
-		Infos:      make([]HouseInfo, len(task.URLsToDetailedInfoPage)),
+		Infos:      make([]HouseInfo, urlCount),
 	}
 
 	results := make(chan intermediateResult)
 	tasks := make(chan intermediateTask)
-	//start 10 workers
-	for i := 0; i < 10; i++ {
+	//start 8 workers
+	for i := 0; i < 8; i++ {
 		go func(tasks chan intermediateTask, results chan intermediateResult) {
 			for task := range tasks {
 				doc, err := goquery.NewDocument(task.url)
@@ -89,15 +91,26 @@ func (c *Crawler) handle(task Task, output chan Result) {
 		}(tasks, results)
 	}
 
-	for i := 0; i < len(task.URLsToDetailedInfoPage); i++ {
-		url := task.URLsToDetailedInfoPage[i]
-
+	receivedResultCount := 0
+	for i := 0; (i < urlCount) || (receivedResultCount != urlCount); i++ {
 		select {
 		case result := <-results:
 			finalResult.Infos[result.index] = result.info
+			receivedResultCount++
 			i--
-		case tasks <- intermediateTask{index: i, url: url}:
-			continue
+		default:
+			if i < urlCount {
+				url := task.URLsToDetailedInfoPage[i]
+
+				select {
+				case tasks <- intermediateTask{index: i, url: url}:
+
+				default:
+					i--
+					continue
+				}
+			}
+
 		}
 
 	}
@@ -146,13 +159,17 @@ func (c *Crawler) Run() {
 }
 
 func (c *Crawler) OutputJSONAsFile() {
-	for pageNumber, infos := range c.infos {
-		content, err := json.Marshal(infos)
-		if err != nil {
-			log.Fatal(err)
-		}
-		ioutil.WriteFile("page"+strconv.Itoa(pageNumber)+".json", content, 0644)
+	result := make([]HouseInfo, 0)
+	for i := 0; i < len(c.infos); i++ {
+		page := i + 1
+		result = append(result, c.infos[page]...)
 	}
+	content, err := json.Marshal(result)
+	if err != nil {
+		log.Fatal(err)
+	}
+	ioutil.WriteFile("result.json", content, 0644)
+
 }
 
 func main() {
@@ -165,5 +182,4 @@ func main() {
 
 	crawler.Run()
 	crawler.OutputJSONAsFile()
-
 }
