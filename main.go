@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"io/ioutil"
 	"log"
+	"os"
 	"strconv"
 )
 
@@ -15,11 +17,13 @@ const (
 )
 
 var (
-	regionId int
+	regionId   int
+	outputType string
 )
 
 func init() {
 	flag.IntVar(&regionId, "region", 8, "To see the region id, please visit https://store.591.com.tw/index.php")
+	flag.StringVar(&outputType, "output", "csv", "You can specify as json or csv")
 }
 
 func (c *Crawler) getPageURL(pageNumber int) string {
@@ -71,7 +75,7 @@ func (c *Crawler) handle(task Task, output chan Result) {
 	results := make(chan intermediateResult)
 	tasks := make(chan intermediateTask)
 	//start 8 workers
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 5; i++ {
 		go func(tasks chan intermediateTask, results chan intermediateResult) {
 			for task := range tasks {
 				doc, err := goquery.NewDocument(task.url)
@@ -158,7 +162,26 @@ func (c *Crawler) Run() {
 	}
 }
 
-func (c *Crawler) OutputJSONAsFile() {
+func (c *Crawler) OutputAsCSVFile() {
+	file, err := os.Create("result.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	writer := csv.NewWriter(file)
+	row := make([]string, 1)
+	for page := 0; page < len(c.infos); page++ {
+		for i := 0; i < len(c.infos[page]); i++ {
+			row[0] = c.infos[page][i].Addr
+			if err := writer.Write(row); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+	writer.Flush()
+}
+
+func (c *Crawler) OutputAsJSONFile() {
 	result := make([]HouseInfo, 0)
 	for i := 0; i < len(c.infos); i++ {
 		page := i + 1
@@ -169,7 +192,6 @@ func (c *Crawler) OutputJSONAsFile() {
 		log.Fatal(err)
 	}
 	ioutil.WriteFile("result.json", content, 0644)
-
 }
 
 func main() {
@@ -181,5 +203,9 @@ func main() {
 	}
 
 	crawler.Run()
-	crawler.OutputJSONAsFile()
+	if outputType == "json" {
+		crawler.OutputAsJSONFile()
+	} else {
+		crawler.OutputAsCSVFile()
+	}
 }
