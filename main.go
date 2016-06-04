@@ -45,26 +45,65 @@ type Task struct {
 	URLsToDetailedInfoPage []string
 }
 
+type intermediateTask struct {
+	index int
+	url   string
+}
+
 type Result struct {
 	PageNumber int
 	Infos      []HouseInfo
 }
 
+type intermediateResult struct {
+	index int
+	info  HouseInfo
+}
+
 func (c *Crawler) handle(task Task, output chan Result) {
-	result := Result{PageNumber: task.PageNumber, Infos: make([]HouseInfo, 0)}
+	finalResult := Result{
+		PageNumber: task.PageNumber,
+		Infos:      make([]HouseInfo, len(task.URLsToDetailedInfoPage)),
+	}
+
+	results := make(chan intermediateResult)
+	tasks := make(chan intermediateTask)
+	//start 10 workers
+	for i := 0; i < 10; i++ {
+		go func(tasks chan intermediateTask, results chan intermediateResult) {
+			for task := range tasks {
+				doc, err := goquery.NewDocument(task.url)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				doc.Find(".addr").Each(func(i int, s *goquery.Selection) {
+					info := HouseInfo{Addr: s.Text()}
+
+					results <- intermediateResult{
+						index: task.index,
+						info:  info,
+					}
+				})
+			}
+		}(tasks, results)
+	}
 
 	for i := 0; i < len(task.URLsToDetailedInfoPage); i++ {
-		doc, err := goquery.NewDocument(task.URLsToDetailedInfoPage[i])
-		if err != nil {
-			log.Fatal(err)
+		url := task.URLsToDetailedInfoPage[i]
+
+		select {
+		case result := <-results:
+			finalResult.Infos[result.index] = result.info
+			i--
+		case tasks <- intermediateTask{index: i, url: url}:
+			continue
 		}
 
-		doc.Find(".addr").Each(func(i int, s *goquery.Selection) {
-			info := HouseInfo{Addr: s.Text()}
-			result.Infos = append(result.Infos, info)
-		})
 	}
-	output <- result
+	close(tasks)
+
+	output <- finalResult
 }
 
 func (c *Crawler) Run() {
