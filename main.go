@@ -170,7 +170,7 @@ func (c *Crawler) OutputAsCSVFile() {
 
 	writer := csv.NewWriter(file)
 	row := make([]string, 1)
-	for page := 0; page < len(c.infos); page++ {
+	for page := 1; page <= len(c.infos); page++ {
 		for i := 0; i < len(c.infos[page]); i++ {
 			row[0] = c.infos[page][i].Addr
 			if err := writer.Write(row); err != nil {
